@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import Navbar from '../../components/Navbar'
 import { supabase } from '../../lib/supabase'
+import Comments from '../../components/Comments'
 
 export default function AlbumPage() {
   const router = useRouter()
@@ -252,48 +253,15 @@ export default function AlbumPage() {
             )}
 
             {/* Discussion tab */}
-            {activeTab === 'discussion' && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                {user ? (
-                  <div className="bg-[#0d1614] border border-white/[0.04] rounded-2xl p-6 mb-6">
-                    <textarea
-                      rows={3}
-                      placeholder="What do you think about this album..."
-                      className="w-full bg-transparent border-none outline-none text-[#f0ede8] text-[14px] font-serif placeholder-[#2a3838] resize-none"
-                      style={{ caretColor: '#1DCFAA' }}
-                    />
-                    <div className="flex justify-end mt-4 pt-4 border-t border-white/[0.04]">
-                      <button className="bg-[#1DCFAA] text-[#050505] px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:brightness-110 transition-all border-none cursor-pointer font-serif">
-                        Post
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-[#0d1614] border border-white/[0.04] rounded-2xl p-8 text-center mb-6">
-                    <p className="text-[13px] text-[#3a4a48] font-serif mb-4">
-                      Join the conversation
-                    </p>
-                    <Link href="/signup">
-                      <button className="bg-[#1DCFAA] text-[#050505] px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] hover:brightness-110 transition-all border-none cursor-pointer font-serif">
-                        Sign up to comment
-                      </button>
-                    </Link>
-                  </div>
-                )}
-
-                {/* Comments placeholder */}
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <p className="text-[1.5rem] text-[#1a2828] font-serif">◎</p>
-                  <p className="text-[12px] text-[#3a4a48] font-serif">
-                    No comments yet — be the first
-                  </p>
-                </div>
-              </motion.div>
-            )}
+{activeTab === 'discussion' && (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4 }}
+  >
+    <Comments albumId={id} user={user} profile={profile} />
+  </motion.div>
+)}
           </div>
 
           {/* Right — album meta sidebar */}
