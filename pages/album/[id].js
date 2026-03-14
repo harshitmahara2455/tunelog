@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import Navbar from '../../components/Navbar'
 import { supabase } from '../../lib/supabase'
 import Comments from '../../components/Comments'
+import LogModal from '../../components/LogModel'
 
 export default function AlbumPage() {
   const router = useRouter()
@@ -16,6 +17,8 @@ export default function AlbumPage() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [activeTab, setActiveTab] = useState('tracklist')
+  const [showLogModal, setShowLogModal] = useState(false)
+const [userListen, setUserListen] = useState(null)
 
   useEffect(() => {
     async function getUser() {
@@ -59,6 +62,20 @@ export default function AlbumPage() {
 
     setLoading(false)
   }
+  async function fetchUserListen() {
+  if (!user) return
+  const { data } = await supabase
+    .from('listens')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('album_id', id)
+    .single()
+  setUserListen(data || null)
+}
+
+useEffect(() => {
+  if (user && id) fetchUserListen()
+}, [user, id])
 
   function formatDuration(ms) {
     if (!ms) return '--:--'
@@ -171,16 +188,27 @@ export default function AlbumPage() {
             {/* Actions */}
             <div className="flex items-center gap-3 mt-8">
               {user ? (
-                <button className="bg-[#1DCFAA] text-[#050505] px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif">
-                  Log this album
-                </button>
-              ) : (
-                <Link href="/signup">
-                  <button className="bg-[#1DCFAA] text-[#050505] px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif">
-                    Sign up to log
-                  </button>
-                </Link>
-              )}
+  <button
+    onClick={() => setShowLogModal(true)}
+    className={`px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif ${
+      userListen
+        ? 'bg-white/[0.08] text-[#1DCFAA] border border-[#1DCFAA33]'
+        : 'bg-[#1DCFAA] text-[#050505]'
+    }`}
+  >
+    {userListen
+      ? `Logged ${userListen.rating ? '· ' + '★'.repeat(userListen.rating) : ''}`
+      : 'Log this album'
+    }
+  </button>
+) : (
+  <Link href="/signup">
+    <button className="bg-[#1DCFAA] text-[#050505] px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif">
+      Sign up to log
+    </button>
+  </Link>
+)}
+     
               <button className="border border-white/[0.07] text-[#6b7b7a] px-7 py-3 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif">
                 Share
               </button>
@@ -334,6 +362,21 @@ export default function AlbumPage() {
           </motion.div>
         </div>
       </section>
+
+    
+{showLogModal && user && (
+        <LogModal
+          album={{
+            id,
+            title: album.title,
+            artistName,
+            coverUrl: coverError ? null : coverUrl,
+          }}
+          user={user}
+          onClose={() => setShowLogModal(false)}
+          onLogged={fetchUserListen}
+        />
+      )}
 
     </div>
   )
