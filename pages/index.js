@@ -6,13 +6,13 @@ import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import AlbumCard from '../components/AlbumCard'
 
-const TRENDING = [
-  { title: 'To Pimp a Butterfly', artist: 'Kendrick Lamar', year: '2015' },
-  { title: 'OK Computer', artist: 'Radiohead', year: '1997' },
-  { title: 'Channel Orange', artist: 'Frank Ocean', year: '2012' },
-  { title: 'Blue', artist: 'Joni Mitchell', year: '1971' },
-  { title: 'Blonde', artist: 'Frank Ocean', year: '2016' },
-  { title: 'Rumours', artist: 'Fleetwood Mac', year: '1977' },
+const TRENDING_QUERIES = [
+  'To Pimp a Butterfly Kendrick Lamar',
+  'OK Computer Radiohead',
+  'Channel Orange Frank Ocean',
+  'Blue Joni Mitchell',
+  'Blonde Frank Ocean',
+  'Rumours Fleetwood Mac',
 ]
 
 const ACTIVITY = [
@@ -33,6 +33,31 @@ export default function Home() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [trending, setTrending] = useState([])
+
+useEffect(() => {
+  async function fetchTrending() {
+    const results = await Promise.all(
+      TRENDING_QUERIES.map(async (q) => {
+        const res = await fetch(
+          `https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(q)}&type=album&limit=1&fmt=json`,
+          { headers: { 'User-Agent': 'Tunelog/1.0 (your@email.com)' } }
+        )
+        const data = await res.json()
+        const album = data['release-groups']?.[0]
+        if (!album) return null
+        return {
+          title: album.title,
+          artist: album['artist-credit']?.[0]?.artist?.name || '',
+          year: album['first-release-date']?.substring(0, 4) || '',
+          mbid: album.id,
+        }
+      })
+    )
+    setTrending(results.filter(Boolean))
+  }
+  fetchTrending()
+}, [])
 
   useEffect(() => {
     async function getUser() {
@@ -242,17 +267,18 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-6 gap-8">
-          {TRENDING.map((album, i) => (
-            <AlbumCard
-              key={i}
-              title={album.title}
-              artist={album.artist}
-              year={album.year}
-              index={i}
-            />
-          ))}
-        </div>
+<div className="grid grid-cols-6 gap-8">
+  {trending.map((album, i) => (
+    <AlbumCard
+      key={i}
+      title={album.title}
+      artist={album.artist}
+      year={album.year}
+      mbid={album.mbid}
+      index={i}
+    />
+  ))}
+</div>
       </section>
 
       {/* ── FEATURES ─────────────────────────────────────────── */}
