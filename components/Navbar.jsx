@@ -59,14 +59,17 @@ export default function Navbar({ user, profile, onLogout }) {
 
           {user ? (
             <>
-              <div className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] px-4 py-2 rounded-full">
-                <div className="w-5 h-5 rounded-full bg-[#1a3a38] flex items-center justify-center text-[#1DCFAA] text-[10px] font-bold">
-                  {profile?.username?.[0]?.toUpperCase()}
-                </div>
-                <span className="text-[11px] text-[#8a9b9a] font-serif">
-                  {profile?.username}
-                </span>
-              </div>
+            <Link
+  href={`/profile/${profile?.username}`}
+  className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] px-4 py-2 rounded-full hover:border-[#1DCFAA22] transition-colors"
+>
+  <div className="w-5 h-5 rounded-full bg-[#1a3a38] flex items-center justify-center text-[#1DCFAA] text-[10px] font-bold">
+    {profile?.username?.[0]?.toUpperCase()}
+  </div>
+  <span className="text-[11px] text-[#8a9b9a] font-serif">
+    {profile?.username}
+  </span>
+</Link>
               <button
                 onClick={onLogout}
                 className="text-[11px] text-[#3a5452] hover:text-red-400 transition-colors bg-transparent border-none cursor-pointer font-serif tracking-[0.12em] uppercase"

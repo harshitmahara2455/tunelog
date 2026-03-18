@@ -31,36 +31,39 @@ export default function LogModal({ album, user, onClose, onLogged }) {
   }
 
   async function handleLog() {
-    if (loading) return
-    setLoading(true)
+  if (loading) return
+  setLoading(true)
 
-    const payload = {
-      user_id: user.id,
-      album_id: album.id,
-      album_title: album.title,
-      artist_name: album.artistName,
-      cover_url: album.coverUrl,
-      rating: rating || null,
-      first_listen: firstListen,
-      listened_at: new Date().toISOString(),
-    }
-
-    if (existing) {
-      await supabase
-        .from('listens')
-        .update(payload)
-        .eq('user_id', user.id)
-        .eq('album_id', album.id)
-    } else {
-      await supabase
-        .from('listens')
-        .insert(payload)
-    }
-
-    setLoading(false)
-    onLogged()
-    onClose()
+  const payload = {
+    user_id: user.id,
+    album_id: album.id,
+    album_title: album.title,
+    artist_name: album.artistName,
+    cover_url: album.coverUrl || null,
+    rating: rating || null,
+    first_listen: firstListen,
   }
+
+  console.log('Saving payload:', payload)
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('listens')
+      .update(payload)
+      .eq('user_id', user.id)
+      .eq('album_id', album.id)
+    console.log('Update result:', data, error)
+  } else {
+    const { data, error } = await supabase
+      .from('listens')
+      .insert(payload)
+    console.log('Insert result:', data, error)
+  }
+
+  setLoading(false)
+  onLogged()
+  onClose()
+}
 
   async function handleRemove() {
     if (!existing || loading) return
