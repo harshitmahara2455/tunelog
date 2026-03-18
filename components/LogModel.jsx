@@ -34,16 +34,16 @@ export default function LogModal({ album, user, onClose, onLogged }) {
   if (loading) return
   setLoading(true)
 
-  const payload = {
-    user_id: user.id,
-    album_id: album.id,
-    album_title: album.title,
-    artist_name: album.artistName,
-    cover_url: album.coverUrl || null,
-    rating: rating || null,
-    first_listen: firstListen,
-  }
-
+const payload = {
+  user_id: user.id,
+  album_id: album.id,
+  album_title: album.title,
+  artist_name: album.artistName,
+  artist_mbid: album.artistMbid || null,
+  cover_url: album.coverUrl || null,
+  rating: rating || null,
+  first_listen: firstListen,
+}
   console.log('Saving payload:', payload)
 
   if (existing) {

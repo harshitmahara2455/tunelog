@@ -14,6 +14,10 @@ export default function ProfilePage() {
   const [listens, setListens] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('library')
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [followLoading, setFollowLoading] = useState(false)
 
   useEffect(() => {
     async function getUser() {
@@ -35,24 +39,21 @@ export default function ProfilePage() {
     fetchProfile()
   }, [username])
 
+  useEffect(() => {
+    if (profileUser) fetchFollowData()
+  }, [profileUser, currentUser])
+
   async function fetchProfile() {
     setLoading(true)
-
-    // fetch profile by username
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('username', username)
       .single()
 
-    if (!profile) {
-      setLoading(false)
-      return
-    }
-
+    if (!profile) { setLoading(false); return }
     setProfileUser(profile)
 
-    // fetch their listens
     const { data: listenData } = await supabase
       .from('listens')
       .select('*')
@@ -61,6 +62,58 @@ export default function ProfilePage() {
 
     setListens(listenData || [])
     setLoading(false)
+  }
+
+  async function fetchFollowData() {
+    if (!profileUser) return
+
+    const { count: followers } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('following_id', profileUser.id)
+
+    const { count: following } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('follower_id', profileUser.id)
+
+    setFollowerCount(followers || 0)
+    setFollowingCount(following || 0)
+
+    if (currentUser && currentUser.id !== profileUser.id) {
+      const { data } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', currentUser.id)
+        .eq('following_id', profileUser.id)
+        .single()
+      setIsFollowing(!!data)
+    }
+  }
+
+  async function handleFollow() {
+    if (!currentUser || followLoading) return
+    setFollowLoading(true)
+
+    if (isFollowing) {
+      await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', currentUser.id)
+        .eq('following_id', profileUser.id)
+      setIsFollowing(false)
+      setFollowerCount(prev => prev - 1)
+    } else {
+      await supabase
+        .from('follows')
+        .insert({
+          follower_id: currentUser.id,
+          following_id: profileUser.id,
+        })
+      setIsFollowing(true)
+      setFollowerCount(prev => prev + 1)
+    }
+    setFollowLoading(false)
   }
 
   async function handleLogout() {
@@ -72,9 +125,7 @@ export default function ProfilePage() {
 
   function formatDate(timestamp) {
     return new Date(timestamp).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      month: 'short', day: 'numeric', year: 'numeric',
     })
   }
 
@@ -124,15 +175,12 @@ export default function ProfilePage() {
           className="flex items-end justify-between"
         >
           <div className="flex items-end gap-8">
-            {/* Avatar */}
             <div
               className="w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold flex-shrink-0"
               style={{ background: '#1a3a38', color: '#1DCFAA' }}
             >
               {profileUser.username?.[0]?.toUpperCase()}
             </div>
-
-            {/* Info */}
             <div>
               <p className="text-[10px] uppercase tracking-[0.4em] text-[#1DCFAA] mb-3 font-bold font-serif">
                 Listener
@@ -151,12 +199,41 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Edit profile button if own profile */}
-          {isOwnProfile && (
-            <button className="border border-white/[0.07] text-[#6b7b7a] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif">
-              Edit profile
-            </button>
-          )}
+          {/* Action buttons */}
+          <div className="flex items-center gap-3">
+            {isOwnProfile ? (
+              <button className="border border-white/[0.07] text-[#6b7b7a] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif">
+                Edit profile
+              </button>
+            ) : currentUser ? (
+              <>
+                {isFollowing && (
+                  <Link href={`/chat/${profileUser.username}`}>
+                    <button className="border border-[#1DCFAA33] text-[#1DCFAA] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:bg-[#1DCFAA11] transition-all bg-transparent cursor-pointer font-serif">
+                      Message
+                    </button>
+                  </Link>
+                )}
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] transition-all cursor-pointer font-serif border-none disabled:opacity-50 ${
+                    isFollowing
+                      ? 'bg-white/[0.06] text-[#6b7b7a] hover:bg-red-950/30 hover:text-red-400'
+                      : 'bg-[#1DCFAA] text-[#050505] hover:brightness-110'
+                  }`}
+                >
+                  {followLoading ? '...' : isFollowing ? 'Following' : 'Follow'}
+                </button>
+              </>
+            ) : (
+              <Link href="/signup">
+                <button className="bg-[#1DCFAA] text-[#050505] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:brightness-110 transition-all border-none cursor-pointer font-serif">
+                  Sign up to follow
+                </button>
+              </Link>
+            )}
+          </div>
         </motion.div>
 
         {/* Stats row */}
@@ -168,7 +245,8 @@ export default function ProfilePage() {
         >
           {[
             { val: listens.length, label: 'Albums logged' },
-            { val: listens.filter(l => l.first_listen).length, label: 'First listens' },
+            { val: followerCount, label: 'Followers' },
+            { val: followingCount, label: 'Following' },
             { val: avgRating ? `${avgRating} / 5` : '—', label: 'Avg rating' },
           ].map((s, i) => (
             <div key={i}>
@@ -181,8 +259,6 @@ export default function ProfilePage() {
 
       {/* ── TABS + CONTENT ───────────────────────────────────── */}
       <section className="px-16 lg:px-28 py-10">
-
-        {/* Tab switcher */}
         <div className="flex items-center gap-1 mb-10 border-b border-white/[0.04]">
           {['library', 'recent'].map((tab) => (
             <button
@@ -199,7 +275,7 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* Library — album grid */}
+        {/* Library */}
         {activeTab === 'library' && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -210,7 +286,7 @@ export default function ProfilePage() {
               <div className="flex flex-col items-center justify-center py-32 gap-4">
                 <p className="text-[2rem] text-[#1a2828] font-serif">◎</p>
                 <p className="text-[13px] text-[#3a4a48] font-serif">
-                  {isOwnProfile ? 'You haven\'t logged any albums yet' : 'No albums logged yet'}
+                  {isOwnProfile ? "You haven't logged any albums yet" : 'No albums logged yet'}
                 </p>
                 {isOwnProfile && (
                   <Link href="/search">
@@ -242,7 +318,6 @@ export default function ProfilePage() {
                             <span className="text-xl text-[#1DCFAA] opacity-20 font-serif">♪</span>
                           </div>
                         )}
-                        {/* Rating badge */}
                         {listen.rating && (
                           <div className="absolute bottom-1.5 right-1.5 bg-black/70 px-1.5 py-0.5 rounded-md">
                             <span className="text-[10px] text-[#1DCFAA] font-serif">
@@ -250,7 +325,6 @@ export default function ProfilePage() {
                             </span>
                           </div>
                         )}
-                        {/* First listen badge */}
                         {listen.first_listen && (
                           <div className="absolute top-1.5 left-1.5 bg-[#1DCFAA]/20 border border-[#1DCFAA]/30 px-1.5 py-0.5 rounded-md">
                             <span className="text-[9px] text-[#1DCFAA] font-serif uppercase tracking-wider">
@@ -258,7 +332,6 @@ export default function ProfilePage() {
                             </span>
                           </div>
                         )}
-                        {/* Hover overlay */}
                         <div className="absolute inset-0 bg-[#1DCFAA]/[0.04] opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                       <p className="text-[11px] text-[#c0cdc8] truncate font-serif group-hover:text-[#f0ede8] transition-colors">
@@ -275,7 +348,7 @@ export default function ProfilePage() {
           </motion.div>
         )}
 
-        {/* Recent — list view */}
+        {/* Recent */}
         {activeTab === 'recent' && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -295,7 +368,6 @@ export default function ProfilePage() {
                     href={`/album/${listen.album_id}`}
                     className="flex items-center gap-5 px-6 py-4 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors group"
                   >
-                    {/* Cover */}
                     <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/[0.06] bg-[#111a18]">
                       {listen.cover_url ? (
                         <img
@@ -309,8 +381,6 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-[#c0cdc8] font-serif truncate group-hover:text-[#f0ede8] transition-colors">
                         {listen.album_title}
@@ -319,22 +389,16 @@ export default function ProfilePage() {
                         {listen.artist_name}
                       </p>
                     </div>
-
-                    {/* Rating */}
                     {listen.rating && (
                       <span className="text-[11px] text-[#1DCFAA] font-serif flex-shrink-0">
                         {'★'.repeat(listen.rating)}
                       </span>
                     )}
-
-                    {/* First listen */}
                     {listen.first_listen && (
                       <span className="text-[9px] text-[#1DCFAA] border border-[#1DCFAA]/30 px-2 py-0.5 rounded-full font-serif uppercase tracking-wider flex-shrink-0">
                         First listen
                       </span>
                     )}
-
-                    {/* Date */}
                     <span className="text-[10px] text-[#2a3838] font-serif flex-shrink-0">
                       {formatDate(listen.listened_at)}
                     </span>

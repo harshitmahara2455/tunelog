@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import Navbar from '../../components/Navbar'
 import { supabase } from '../../lib/supabase'
 import Comments from '../../components/Comments'
-import LogModal from '../../components/LogModel'
+import LogModal from '../../components/LogModal'
 
 export default function AlbumPage() {
   const router = useRouter()
@@ -18,7 +18,9 @@ export default function AlbumPage() {
   const [profile, setProfile] = useState(null)
   const [activeTab, setActiveTab] = useState('tracklist')
   const [showLogModal, setShowLogModal] = useState(false)
-const [userListen, setUserListen] = useState(null)
+  const [userListen, setUserListen] = useState(null)
+  const [commentCount, setCommentCount] = useState(0)
+  const [listenCount, setListenCount] = useState(0)
 
   useEffect(() => {
     async function getUser() {
@@ -38,11 +40,15 @@ const [userListen, setUserListen] = useState(null)
   useEffect(() => {
     if (!id) return
     fetchAlbum()
+    fetchCommunityStats(id)
   }, [id])
+
+  useEffect(() => {
+    if (user && id) fetchUserListen()
+  }, [user, id])
 
   async function fetchAlbum() {
     setLoading(true)
-
     const albumRes = await fetch(
       `https://musicbrainz.org/ws/2/release-group/${id}?inc=artists+releases&fmt=json`,
       { headers: { 'User-Agent': 'Tunelog/1.0 (your@email.com)' } }
@@ -59,23 +65,34 @@ const [userListen, setUserListen] = useState(null)
       const trackData = await trackRes.json()
       setTracks(trackData.media?.[0]?.tracks || [])
     }
-
     setLoading(false)
   }
-  async function fetchUserListen() {
-  if (!user) return
-  const { data } = await supabase
-    .from('listens')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('album_id', id)
-    .single()
-  setUserListen(data || null)
-}
 
-useEffect(() => {
-  if (user && id) fetchUserListen()
-}, [user, id])
+  async function fetchUserListen() {
+    if (!user) return
+    const { data } = await supabase
+      .from('listens')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('album_id', id)
+      .single()
+    setUserListen(data || null)
+  }
+
+  async function fetchCommunityStats(albumId) {
+    const { count: comments } = await supabase
+      .from('comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('album_id', albumId)
+
+    const { count: listens } = await supabase
+      .from('listens')
+      .select('*', { count: 'exact', head: true })
+      .eq('album_id', albumId)
+
+    setCommentCount(comments || 0)
+    setListenCount(listens || 0)
+  }
 
   function formatDuration(ms) {
     if (!ms) return '--:--'
@@ -188,27 +205,26 @@ useEffect(() => {
             {/* Actions */}
             <div className="flex items-center gap-3 mt-8">
               {user ? (
-  <button
-    onClick={() => setShowLogModal(true)}
-    className={`px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif ${
-      userListen
-        ? 'bg-white/[0.08] text-[#1DCFAA] border border-[#1DCFAA33]'
-        : 'bg-[#1DCFAA] text-[#050505]'
-    }`}
-  >
-    {userListen
-      ? `Logged ${userListen.rating ? '· ' + '★'.repeat(userListen.rating) : ''}`
-      : 'Log this album'
-    }
-  </button>
-) : (
-  <Link href="/signup">
-    <button className="bg-[#1DCFAA] text-[#050505] px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif">
-      Sign up to log
-    </button>
-  </Link>
-)}
-     
+                <button
+                  onClick={() => setShowLogModal(true)}
+                  className={`px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif ${
+                    userListen
+                      ? 'bg-white/[0.08] text-[#1DCFAA] border border-[#1DCFAA33]'
+                      : 'bg-[#1DCFAA] text-[#050505]'
+                  }`}
+                >
+                  {userListen
+                    ? `Logged ${userListen.rating ? '· ' + '★'.repeat(userListen.rating) : ''}`
+                    : 'Log this album'
+                  }
+                </button>
+              ) : (
+                <Link href="/signup">
+                  <button className="bg-[#1DCFAA] text-[#050505] px-7 py-3 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all border-none cursor-pointer font-serif">
+                    Sign up to log
+                  </button>
+                </Link>
+              )}
               <button className="border border-white/[0.07] text-[#6b7b7a] px-7 py-3 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif">
                 Share
               </button>
@@ -226,7 +242,6 @@ useEffect(() => {
 
           {/* Left — tabs */}
           <div>
-            {/* Tab switcher */}
             <div className="flex items-center gap-1 mb-8 border-b border-white/[0.04]">
               {['tracklist', 'discussion'].map((tab) => (
                 <button
@@ -238,7 +253,7 @@ useEffect(() => {
                       : 'text-[#3a4a48] border-transparent hover:text-[#6b7b7a]'
                   }`}
                 >
-                  {tab}
+                  {tab === 'discussion' ? `Discussion (${commentCount})` : tab}
                 </button>
               ))}
             </div>
@@ -281,18 +296,23 @@ useEffect(() => {
             )}
 
             {/* Discussion tab */}
-{activeTab === 'discussion' && (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.4 }}
-  >
-    <Comments albumId={id} user={user} profile={profile} />
-  </motion.div>
-)}
+            {activeTab === 'discussion' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <Comments
+                  albumId={id}
+                  user={user}
+                  profile={profile}
+                  onCommentPosted={() => fetchCommunityStats(id)}
+                />
+              </motion.div>
+            )}
           </div>
 
-          {/* Right — album meta sidebar */}
+          {/* Right — sidebar */}
           <motion.div
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
@@ -338,16 +358,28 @@ useEffect(() => {
               <div className="flex flex-col gap-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#2a3838] mb-1.5 font-serif">Discussions</p>
-                  <p className="text-[13px] text-[#c0cdc8] font-serif">0 comments</p>
+                  <p className="text-[13px] text-[#c0cdc8] font-serif">
+                    {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#2a3838] mb-1.5 font-serif">Logged by</p>
-                  <p className="text-[13px] text-[#c0cdc8] font-serif">0 members</p>
+                  <p className="text-[13px] text-[#c0cdc8] font-serif">
+                    {listenCount} {listenCount === 1 ? 'member' : 'members'}
+                  </p>
                 </div>
+                {commentCount > 0 && (
+                  <button
+                    onClick={() => setActiveTab('discussion')}
+                    className="text-[11px] text-[#3a5452] hover:text-[#1DCFAA] transition-colors font-serif text-left tracking-wider bg-transparent border-none cursor-pointer p-0"
+                  >
+                    View discussion →
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Related search */}
+            {/* Explore more */}
             <div className="bg-[#0d1614] border border-white/[0.04] rounded-2xl p-6">
               <p className="text-[10px] uppercase tracking-[0.3em] text-[#3a5452] mb-5 font-serif font-bold">
                 Explore more
@@ -363,18 +395,21 @@ useEffect(() => {
         </div>
       </section>
 
-    
-{showLogModal && user && (
+      {showLogModal && user && (
         <LogModal
           album={{
             id,
             title: album.title,
             artistName,
+            artistMbid: album['artist-credit']?.[0]?.artist?.id || null,
             coverUrl: coverError ? null : coverUrl,
           }}
           user={user}
           onClose={() => setShowLogModal(false)}
-          onLogged={fetchUserListen}
+          onLogged={() => {
+            fetchUserListen()
+            fetchCommunityStats(id)
+          }}
         />
       )}
 

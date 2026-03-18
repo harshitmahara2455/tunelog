@@ -1,11 +1,55 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { supabase } from '../lib/supabase'
 
 export default function Navbar({ user, profile, onLogout }) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    fetchUnreadCount()
+
+    // realtime subscription for new messages
+    const channel = supabase
+      .channel('unread_messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => fetchUnreadCount()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => fetchUnreadCount()
+      )
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [user])
+
+  async function fetchUnreadCount() {
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', user.id)
+      .eq('read', false)
+
+    setUnreadCount(count || 0)
+  }
 
   function handleSearch(e) {
     e.preventDefault()
@@ -20,7 +64,7 @@ export default function Navbar({ user, profile, onLogout }) {
       transition={{ duration: 0.4 }}
       className="border-b border-white/[0.05] sticky top-0 bg-[#050505] z-50"
     >
-      <nav className="px-16 lg:px-24 py-5 flex items-center justify-between gap-8">
+      <nav className="px-16 lg:px-28 py-5 flex items-center justify-between gap-8">
 
         {/* Wordmark */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
@@ -50,6 +94,7 @@ export default function Navbar({ user, profile, onLogout }) {
 
         {/* Right */}
         <div className="flex items-center gap-7 flex-shrink-0">
+
           <Link
             href="/search"
             className="text-[11px] text-[#4a5a58] tracking-[0.12em] uppercase hover:text-[#1DCFAA] transition-colors font-serif"
@@ -57,19 +102,44 @@ export default function Navbar({ user, profile, onLogout }) {
             Discover
           </Link>
 
+          {user && (
+            <Link
+              href="/recommendations"
+              className="text-[11px] text-[#4a5a58] tracking-[0.12em] uppercase hover:text-[#1DCFAA] transition-colors font-serif"
+            >
+              For You
+            </Link>
+          )}
+
+          {user && (
+            <Link
+              href="/messages"
+              className="relative text-[11px] text-[#4a5a58] tracking-[0.12em] uppercase hover:text-[#1DCFAA] transition-colors font-serif"
+            >
+              Messages
+              {unreadCount > 0 && (
+                <span className="absolute -top-2 -right-3 w-4 h-4 bg-[#1DCFAA] rounded-full flex items-center justify-center">
+                  <span className="text-[8px] text-[#050505] font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                </span>
+              )}
+            </Link>
+          )}
+
           {user ? (
             <>
-            <Link
-  href={`/profile/${profile?.username}`}
-  className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] px-4 py-2 rounded-full hover:border-[#1DCFAA22] transition-colors"
->
-  <div className="w-5 h-5 rounded-full bg-[#1a3a38] flex items-center justify-center text-[#1DCFAA] text-[10px] font-bold">
-    {profile?.username?.[0]?.toUpperCase()}
-  </div>
-  <span className="text-[11px] text-[#8a9b9a] font-serif">
-    {profile?.username}
-  </span>
-</Link>
+              <Link
+                href={`/profile/${profile?.username}`}
+                className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] px-4 py-2 rounded-full hover:border-[#1DCFAA22] transition-colors"
+              >
+                <div className="w-5 h-5 rounded-full bg-[#1a3a38] flex items-center justify-center text-[#1DCFAA] text-[10px] font-bold">
+                  {profile?.username?.[0]?.toUpperCase()}
+                </div>
+                <span className="text-[11px] text-[#8a9b9a] font-serif">
+                  {profile?.username}
+                </span>
+              </Link>
               <button
                 onClick={onLogout}
                 className="text-[11px] text-[#3a5452] hover:text-red-400 transition-colors bg-transparent border-none cursor-pointer font-serif tracking-[0.12em] uppercase"

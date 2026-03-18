@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 
-export default function Comments({ albumId, user, profile }) {
+export default function Comments({ albumId, user, profile, onCommentPosted }) {
   const [comments, setComments] = useState([])
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
@@ -17,7 +17,6 @@ export default function Comments({ albumId, user, profile }) {
     fetchComments()
     if (user) fetchLikes()
 
-    // realtime subscription
     const channel = supabase
       .channel(`comments:${albumId}`)
       .on(
@@ -28,9 +27,7 @@ export default function Comments({ albumId, user, profile }) {
           table: 'comments',
           filter: `album_id=eq.${albumId}`,
         },
-        (payload) => {
-          fetchComments()
-        }
+        () => fetchComments()
       )
       .subscribe()
 
@@ -40,10 +37,7 @@ export default function Comments({ albumId, user, profile }) {
   async function fetchComments() {
     const { data, error } = await supabase
       .from('comments')
-      .select(`
-        *,
-        profiles (username)
-      `)
+      .select(`*, profiles (username)`)
       .eq('album_id', albumId)
       .order('created_at', { ascending: true })
 
@@ -79,6 +73,7 @@ export default function Comments({ albumId, user, profile }) {
     if (!error) {
       setContent('')
       fetchComments()
+      if (onCommentPosted) onCommentPosted()
     }
     setPosting(false)
   }
@@ -101,6 +96,7 @@ export default function Comments({ albumId, user, profile }) {
       setReplyContent('')
       setReplyingTo(null)
       fetchComments()
+      if (onCommentPosted) onCommentPosted()
     }
     setPostingReply(false)
   }
@@ -109,7 +105,6 @@ export default function Comments({ albumId, user, profile }) {
     if (!user) return
 
     if (likes[commentId]) {
-      // unlike
       await supabase
         .from('likes')
         .delete()
@@ -117,7 +112,6 @@ export default function Comments({ albumId, user, profile }) {
         .eq('comment_id', commentId)
       setLikes(prev => { const n = { ...prev }; delete n[commentId]; return n })
     } else {
-      // like
       await supabase
         .from('likes')
         .insert({ user_id: user.id, comment_id: commentId })
@@ -136,16 +130,11 @@ export default function Comments({ albumId, user, profile }) {
     return `${days}d`
   }
 
-  // separate top level and replies
   const topLevel = comments.filter(c => !c.parent_comment_id)
   const replies = comments.filter(c => c.parent_comment_id)
 
   function getReplies(commentId) {
     return replies.filter(r => r.parent_comment_id === commentId)
-  }
-
-  function getLikeCount(commentId) {
-    return replies.concat(topLevel).find(c => c.id === commentId)?.like_count || 0
   }
 
   if (loading) {
@@ -223,7 +212,6 @@ export default function Comments({ albumId, user, profile }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              {/* Top level comment */}
               <CommentRow
                 comment={comment}
                 user={user}
@@ -233,7 +221,6 @@ export default function Comments({ albumId, user, profile }) {
                 formatTime={formatTime}
               />
 
-              {/* Reply form */}
               <AnimatePresence>
                 {replyingTo === comment.id && user && (
                   <motion.form
@@ -282,7 +269,6 @@ export default function Comments({ albumId, user, profile }) {
                 )}
               </AnimatePresence>
 
-              {/* Replies */}
               {getReplies(comment.id).map((reply) => (
                 <div key={reply.id} className="ml-11 mt-2">
                   <CommentRow
@@ -296,7 +282,6 @@ export default function Comments({ albumId, user, profile }) {
                   />
                 </div>
               ))}
-
             </motion.div>
           ))}
         </AnimatePresence>
@@ -308,7 +293,6 @@ export default function Comments({ albumId, user, profile }) {
 function CommentRow({ comment, user, liked, onLike, onReply, formatTime, isReply = false }) {
   return (
     <div className={`flex items-start gap-3 ${isReply ? 'py-2' : 'py-3'}`}>
-      {/* Avatar */}
       <div
         className="rounded-full flex items-center justify-center font-bold flex-shrink-0"
         style={{
@@ -323,23 +307,22 @@ function CommentRow({ comment, user, liked, onLike, onReply, formatTime, isReply
       </div>
 
       <div className="flex-1 min-w-0">
-        {/* Header */}
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[12px] text-[#c0cdc8] font-serif">
-            {comment.profiles?.username}
-          </span>
+          <Link href={`/profile/${comment.profiles?.username}`}>
+            <span className="text-[12px] text-[#c0cdc8] font-serif hover:text-[#1DCFAA] transition-colors cursor-pointer">
+              {comment.profiles?.username}
+            </span>
+          </Link>
           <span className="text-[#1a2828] text-xs">·</span>
           <span className="text-[10px] text-[#2a3838] font-serif">
             {formatTime(comment.created_at)}
           </span>
         </div>
 
-        {/* Content */}
         <p className="text-[13px] text-[#8a9b9a] font-serif leading-[1.75] mb-2">
           {comment.content}
         </p>
 
-        {/* Actions */}
         <div className="flex items-center gap-4">
           <button
             onClick={onLike}
