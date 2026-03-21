@@ -18,6 +18,10 @@ export default function ProfilePage() {
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
+  const [phoneError, setPhoneError] = useState(null)
 
   useEffect(() => {
     async function getUser() {
@@ -116,6 +120,29 @@ export default function ProfilePage() {
     setFollowLoading(false)
   }
 
+  async function handleSavePhone(e) {
+    e.preventDefault()
+    if (!phone.trim()) return
+    setSavingPhone(true)
+    setPhoneError(null)
+
+    const res = await fetch('/api/update-phone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, phone: phone.trim() }),
+    })
+
+    const data = await res.json()
+    if (data.success) {
+      setShowPhoneModal(false)
+      setPhone('')
+      fetchProfile()
+    } else {
+      setPhoneError(data.error || 'Something went wrong')
+    }
+    setSavingPhone(false)
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     setCurrentUser(null)
@@ -202,8 +229,11 @@ export default function ProfilePage() {
           {/* Action buttons */}
           <div className="flex items-center gap-3">
             {isOwnProfile ? (
-              <button className="border border-white/[0.07] text-[#6b7b7a] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif">
-                Edit profile
+              <button
+                onClick={() => setShowPhoneModal(true)}
+                className="border border-white/[0.07] text-[#6b7b7a] px-6 py-2.5 rounded-full text-[11px] uppercase tracking-[0.2em] hover:border-[#1DCFAA33] hover:text-[#1DCFAA] transition-all bg-transparent cursor-pointer font-serif"
+              >
+                {profileUser.phone ? '📱 WhatsApp active' : 'Add WhatsApp number'}
               </button>
             ) : currentUser ? (
               <>
@@ -409,6 +439,78 @@ export default function ProfilePage() {
           </motion.div>
         )}
       </section>
+
+      {/* ── PHONE MODAL ──────────────────────────────────────── */}
+      {showPhoneModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setShowPhoneModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="bg-[#0d1614] border border-white/[0.08] rounded-2xl p-8 w-full"
+            style={{ maxWidth: '420px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-[#1DCFAA] mb-1 font-serif">
+                  WhatsApp notifications
+                </p>
+                <h3 className="text-[1.2rem] font-normal font-serif">Add your number</h3>
+              </div>
+              <button
+                onClick={() => setShowPhoneModal(false)}
+                className="text-[#3a4a48] hover:text-[#6b7b7a] transition-colors bg-transparent border-none cursor-pointer text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-[13px] text-[#5a6b6a] font-serif leading-relaxed mb-6">
+              Get a daily song and weekly album recommendation on WhatsApp — based purely on your taste, no algorithms.
+            </p>
+
+            {phoneError && (
+              <div className="bg-red-950 border border-red-900/50 text-red-300 px-4 py-3 rounded-xl mb-4 text-[12px] font-serif">
+                {phoneError}
+              </div>
+            )}
+
+            <form onSubmit={handleSavePhone} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-[#3a5452] mb-2.5 font-serif">
+                  WhatsApp number
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91XXXXXXXXXX"
+                  className="w-full bg-white/[0.03] border border-white/[0.07] text-[#f0ede8] px-5 py-3.5 rounded-xl text-[14px] font-serif placeholder-[#2a3838] outline-none transition-colors"
+                  style={{ caretColor: '#1DCFAA' }}
+                  onFocus={e => e.target.style.borderColor = 'rgba(29,207,170,0.3)'}
+                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.07)'}
+                />
+                <p className="text-[11px] text-[#2a3838] mt-2 font-serif">
+                  Include country code — e.g. +91 for India
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingPhone || !phone.trim()}
+                className="w-full bg-[#1DCFAA] text-[#050505] py-3.5 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 border-none cursor-pointer font-serif"
+              >
+                {savingPhone ? 'Saving...' : 'Save number'}
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
     </div>
   )
